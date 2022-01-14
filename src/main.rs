@@ -4,11 +4,11 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 
+mod compiler;
 mod convert;
 mod lambolt;
 mod parser;
 mod runtime;
-mod compiler;
 
 fn main() {
   let mut worker = runtime::new_worker();

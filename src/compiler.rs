@@ -2,10 +2,10 @@
 // https://github.com/Kindelia/LambdaVM/blob/new_v2/src/Compile/Compile.ts
 
 // TODO:
-//  - building strings 
+//  - building strings
 
 use askama::Template;
-use ropey::{RopeBuilder, Rope};
+use ropey::{Rope, RopeBuilder};
 
 use crate::lambolt as lb;
 use crate::runtime as rt;
@@ -28,7 +28,7 @@ struct CodeBuilder {
 impl CodeBuilder {
   pub fn new() -> Self {
     CodeBuilder {
-      rope_builder: RopeBuilder::default()
+      rope_builder: RopeBuilder::default(),
     }
   }
 
@@ -65,8 +65,8 @@ pub fn compile(file: &lb::File, target: Target, mode: Mode) -> String {
   // TODO: rewrite_rules_step_1
 
   let template = CodeTemplate {
-    use_dynamic_flag, 
-    use_static_flag, 
+    use_dynamic_flag,
+    use_static_flag,
     constructor_ids: "",
     rewrite_rules_step_0: "",
     rewrite_rules_step_1: "",
@@ -100,19 +100,19 @@ fn line(idt: u32, text: &str) -> Rope {
 
 fn emit_const(target: Target) -> &'static str {
   match target {
-    Target::C => "const u64"
+    Target::C => "const u64",
   }
 }
 
 fn emit_var(target: Target) -> &'static str {
   match target {
-    Target::C => "u64"
+    Target::C => "u64",
   }
 }
 
 fn emit_u64(target: Target, num: u64) -> String {
   match target {
-    Target::C => format!("{}", num), 
+    Target::C => format!("{}", num),
   }
 }
 
@@ -124,12 +124,24 @@ fn emit_gas(target: Target) -> &'static str {
 
 fn emit_use_dynamic(target: Target, use_dynamic: bool) -> &'static str {
   match target {
-    Target::C => if use_dynamic { "#define USE_DYNAMIC" } else { "#undef USE_DYNAMIC" }
+    Target::C => {
+      if use_dynamic {
+        "#define USE_DYNAMIC"
+      } else {
+        "#undef USE_DYNAMIC"
+      }
+    }
   }
 }
 
 fn emit_use_static(target: Target, use_static: bool) -> &'static str {
   match target {
-    Target::C => if use_static {"#define USE_STATIC" } else {"#undef USE_STATIC" }
+    Target::C => {
+      if use_static {
+        "#define USE_STATIC"
+      } else {
+        "#undef USE_STATIC"
+      }
+    }
   }
 }
