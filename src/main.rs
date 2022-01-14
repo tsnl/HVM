@@ -8,6 +8,7 @@ mod convert;
 mod lambolt;
 mod parser;
 mod runtime;
+mod compiler;
 
 fn main() {
   let mut worker = runtime::new_worker();
