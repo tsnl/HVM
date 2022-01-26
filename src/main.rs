@@ -14,8 +14,8 @@ mod rulebook;
 mod runtime;
 
 fn main() -> std::io::Result<()> {
-  run_cli()?;
-  //run_example()?;
+  //run_cli()?;
+  run_example()?;
   return Ok(());
 }
 
@@ -125,6 +125,14 @@ fn run_example() -> std::io::Result<()> {
 
   let code = "
     (Main) = (λx(x 4 5) λa λb b)
+  ";
+
+  let code = "
+    (Main) =
+      (
+        λxs λnil λcons (xs nil λx λxs (cons x xs))
+        λn λc (c 0 (c 0 n))
+      )
   ";
 
   // Compiles to C and saves as 'main.c'

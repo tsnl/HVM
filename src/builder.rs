@@ -351,6 +351,7 @@ pub fn build_body(term: &DynTerm, free_vars: u64) -> Body {
           dupk = DUPS_COUNT;
           DUPS_COUNT += 1;
         }
+        println!("-> {}", dupk);
         link(nodes, targ, 0, Elem::Fix { value: rt::Era() });
         link(nodes, targ, 1, Elem::Fix { value: rt::Era() });
         let expr = go(expr, vars, nodes);
