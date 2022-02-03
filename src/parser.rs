@@ -30,7 +30,7 @@
 // Types
 // =====
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct State<'a> {
   pub code: &'a str,
   pub index: usize,
@@ -416,17 +416,16 @@ pub fn highlight(from_index: usize, to_index: usize, code: &str) -> String {
       rest = flatten(&[
         &line[0..find(line, open)],
         open_color,
-        &line[find(line, open)..line.len()],
+        &line[find(line, open) + open.len()..line.len()],
         "\n",
       ]);
     } else if numb > from_line && numb < to_line {
       rest = flatten(&[open_color, line, close_color, "\n"]);
     } else if numb == to_line {
       rest = flatten(&[
-        &line[0..find(line, open)],
-        open_color,
-        &line[find(line, open)..find(line, close) + close.len()],
+        &line[0..find(line, close)],
         close_color,
+        &line[find(line, close) + close.len()..line.len()],
         "\n",
       ]);
     } else {
@@ -487,4 +486,412 @@ pub fn testree_parser<'a>() -> Parser<'a, Box<Testree>> {
     let (state, tree) = grammar("Testree", &[node_parser(), leaf_parser()], state)?;
     Ok((state, tree))
   })
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  
+  fn mocked_state_1<'a>(index: usize) -> State<'a> {
+    State {
+      code: "foo bar baz",
+      index
+    }
+  }
+
+  fn mocked_state_2<'a>(index: usize) -> State<'a> {
+    State {
+      code: "// Compose functions
+        // Computes f^(2^n)
+        (Comp 0 f x) = (f x)
+        (Comp n f x) = (Comp (- n 1) λk(f (f k)) x)
+      ",
+      index
+    }
+  }
+
+  fn parse_test_ok<'a, A: PartialEq + std::fmt::Debug>(
+    parser: Parser<'a, A>, 
+    expected_result: A, 
+    state_before: State<'a>, 
+    state_after: State<'a>
+  ) {
+    let state = state_before;
+    let parsed = parser(state);
+    assert!(parsed.is_ok());
+    if let Ok((state, result)) = parsed {
+      assert_eq!(expected_result, result);
+      assert_eq!(state_after, state);
+    }
+  }
+
+  fn parse_test_err<'a, A: PartialEq + std::fmt::Debug>(
+    parser: Parser<'a, A>,
+    state_before: State<'a>
+  ) {
+    let state = state_before;
+    let parsed = parser(state);
+    assert!(parsed.is_err());
+  }
+
+
+  // gen fake parsers used only in tests
+  fn mocked_parser_gen<'a>(text: &'static str) -> Parser<'a, bool> {
+    Box::new(move |state: State| -> Answer<bool> {
+      let pos = state.index;
+      if &state.code[pos..pos+3] == text {
+        let state = State {
+          code: state.code,
+          index: state.index+3
+        };
+        Ok((state, true))
+      } else {
+        Err(format!("not a {}", text))
+      }
+    })
+  }
+
+  // tests for the mocked parser
+  #[test]
+  fn mocked_parser_gen_test() {
+    parse_test_ok(mocked_parser_gen("foo"), true, mocked_state_1(0), mocked_state_1(3));
+    parse_test_ok(mocked_parser_gen("bar"), true, mocked_state_1(4), mocked_state_1(7));
+  }
+
+  #[test]
+  fn mocked_parser_fail() {
+    parse_test_err(mocked_parser_gen("foo"), mocked_state_1(1));
+    parse_test_err(mocked_parser_gen("foo"), mocked_state_1(2));
+  }
+
+  // parses a 'foo' and update index
+  fn mocked_parser_foo<'a>() -> Parser<'a, bool> {
+    mocked_parser_gen("foo")
+  }
+
+  // parses a 'bar' and update index
+  fn mocked_parser_bar<'a>() -> Parser<'a, bool> {
+    mocked_parser_gen("bar")
+  }
+
+  // parses a 'baz' and update index
+  fn mocked_parser_baz<'a>() -> Parser<'a, bool> {
+    mocked_parser_gen("baz")
+  }
+
+  // Utils
+  #[test]
+  fn equal_at_test() {
+    assert!(equal_at("foo bar baz", "foo", 0));
+    assert!(equal_at("foo bar baz", "bar", 4));
+    assert!(equal_at("foo bar baz", "baz", 8));
+    assert!(!equal_at("foo bar baz", "bar", 0));
+  }
+
+  #[test]
+  #[should_panic]
+  fn equal_at_panic() {
+    equal_at("", "baz", 8);
+  }
+
+  #[test]
+  fn flatten_test() {
+    assert_eq!(
+      "foobarbaz",
+      flatten(&["foo", "bar", "baz"])
+    );
+  }
+  
+  #[test]
+  fn lines_test() {
+    assert_eq!(
+      vec!["foo", "bar", "baz"],
+      lines("foo\nbar\nbaz")
+    );
+    assert_eq!(
+      vec!["foobarbaz"],
+      lines("foobarbaz")
+    );
+    let empty : Vec<String> = vec![];
+    assert_eq!(
+      empty,
+      lines("")
+    );
+  }
+
+  #[test]
+  fn find_test() {
+    assert_eq!(8, find("foo bar baz", "baz"));
+    assert_eq!(4, find("foo bar baz", "bar"));
+  }
+
+  #[test]
+  #[should_panic]
+  fn find_panic() {
+    find("foo bar", "baz");
+  }
+    
+  #[test]
+  fn read_test() {
+    let parser = mocked_parser_foo();
+    assert!(read(parser, "foo bar baz"));
+  }
+
+  #[test]
+  #[should_panic]
+  fn read_fail() {
+    let parser = mocked_parser_foo();
+    read(parser, "bar foo");
+  }
+  
+  // Elims
+  // =====
+
+  #[test]
+  fn head_test() {
+    assert_eq!(head(mocked_state_1(0)), Some('f'));
+    assert_eq!(head(mocked_state_1(4)), Some('b'));
+    assert_eq!(head(mocked_state_1(5)), Some('a'));
+    assert_eq!(head(mocked_state_1(11)), None);
+  }
+
+  #[test]
+  #[should_panic]
+  fn head_panic() {
+    head(mocked_state_1(12));
+  }
+
+  #[test]
+  fn head_default_test() {
+    assert_eq!(head_default(mocked_state_1(0)), 'f');
+    assert_eq!(head_default(mocked_state_1(4)), 'b');
+    assert_eq!(head_default(mocked_state_1(5)), 'a');
+    assert_eq!(head_default(mocked_state_1(11)), '\0');
+  }
+
+  #[test]
+  #[should_panic]
+  fn head_default_panic() {
+    head_default(mocked_state_1(12));
+  }
+
+  #[test]
+  fn tail_test() {
+    assert_eq!(tail(mocked_state_1(0)), mocked_state_1(1));
+    assert_eq!(tail(mocked_state_1(4)), mocked_state_1(5));
+    assert_eq!(tail(mocked_state_1(5)), mocked_state_1(6));
+    assert_eq!(tail(mocked_state_1(11)), mocked_state_1(11));
+  }
+
+  #[test]
+  #[should_panic]
+  fn tail_panic() {
+    tail(mocked_state_1(12));
+  }
+
+  #[test]
+  fn get_char_parser_test() {
+    parse_test_ok(get_char_parser(), 'b', mocked_state_1(4), mocked_state_1(5));
+    parse_test_ok(get_char_parser(), '\0', mocked_state_1(11), mocked_state_1(11));
+  }
+
+  // Skippers
+  // ========
+
+  #[test]
+  fn skip_comment_parser_test() {
+    parse_test_ok(skip_comment_parser(), false, mocked_state_1(0), mocked_state_1(0));
+    parse_test_ok(skip_comment_parser(), true, mocked_state_2(0), mocked_state_2(20));
+  }
+
+  #[test]
+  fn skip_spaces_parser_test() {
+    parse_test_ok(skip_spaces_parser(), false, mocked_state_1(0), mocked_state_1(0));
+    parse_test_ok(skip_spaces_parser(), true, mocked_state_1(3), mocked_state_1(4));
+    parse_test_ok(skip_spaces_parser(), true, mocked_state_2(20), mocked_state_2(29));
+  }
+
+  #[test]
+  fn skip_parser_test() {
+    parse_test_ok(skip_parser(), false, mocked_state_1(0), mocked_state_1(0));
+    parse_test_ok(skip_parser(), true, mocked_state_1(3), mocked_state_1(4));
+    parse_test_ok(skip_parser(), true, mocked_state_2(0), mocked_state_2(57));
+  }
+
+  // Strings
+  // =======
+
+  #[test]
+  fn text_here_parser_test() {
+    parse_test_ok(text_here_parser("foo"), true, mocked_state_1(0), mocked_state_1(3));
+    parse_test_ok(text_here_parser("foo"), false, mocked_state_1(4), mocked_state_1(4));
+    parse_test_ok(text_here_parser("bar"), true, mocked_state_1(4), mocked_state_1(7));
+  }
+
+  #[test]
+  fn text_parser_test() {
+    parse_test_ok(text_parser("foo"), true, mocked_state_1(0), mocked_state_1(3));
+    parse_test_ok(text_parser("foo"), false, mocked_state_1(4), mocked_state_1(4));
+    parse_test_ok(text_parser("("), true, mocked_state_2(0), mocked_state_2(58));
+    parse_test_ok(text_parser("foo"), false, mocked_state_2(0), mocked_state_2(57));
+  }
+
+  #[test]
+  fn consume_parser_test_ok() {
+    parse_test_ok(consume_parser("foo"), (), mocked_state_1(0), mocked_state_1(3));
+    parse_test_ok(consume_parser("("), (), mocked_state_2(0), mocked_state_2(58));
+  }
+
+  #[test]
+  fn consume_parser_test_err() {
+    parse_test_err(consume_parser("foo"), mocked_state_1(4));
+    parse_test_err(consume_parser("foo"), mocked_state_2(0));
+  }
+
+  #[test]
+  fn done_parser_test() {
+    parse_test_ok(done_parser(), true, mocked_state_1(11), mocked_state_1(11));
+    parse_test_ok(done_parser(), false, mocked_state_1(10), mocked_state_1(10));
+    parse_test_ok(done_parser(), true, mocked_state_2(130), mocked_state_2(137));
+  }
+
+  #[test]
+  fn guard_test() {
+    // created only to use the function below
+    let guard_parser = |first_text, second_text| { 
+      Box::new(move |x| { 
+        guard(text_parser(first_text), text_parser(second_text), x)
+      })
+    };
+    parse_test_ok(guard_parser("foo", "foo bar"), Some(true), mocked_state_1(0), mocked_state_1(7));
+    parse_test_ok(guard_parser("foo", "bar"), Some(false), mocked_state_1(0), mocked_state_1(0));
+    parse_test_ok(guard_parser("bar", "bar baz"), None, mocked_state_1(0), mocked_state_1(0));
+  }
+
+  fn grammar_test() {
+    todo!()
+    // created only to use the function below
+    // let grammar_parser = |texts: Vec<&str>| { 
+    //   Box::new(move |x| { 
+    //     let parsers = texts.iter().map(|&text| text_parser(text)).collect();
+    //     grammar("test", parsers, x)
+    //   })
+    // };
+  }
+
+
+  // Combinators
+  // ===========
+  #[test]
+  fn dry_test() {
+    assert_eq!(dry(mocked_parser_foo(), mocked_state_1(0)), Ok((mocked_state_1(0), true)));
+    assert_eq!(dry(mocked_parser_foo(), mocked_state_1(4)), Err("not a foo".to_string()));
+    assert_eq!(dry(text_parser("bar"),  mocked_state_1(7)), Ok((mocked_state_1(7), false)));
+  }
+
+  #[test]
+  fn until_test() {
+    assert_eq!(
+      until(skip_spaces_parser(), get_char_parser(), mocked_state_1(0)), 
+      Ok((mocked_state_1(4), vec!['f', 'o', 'o']))
+    );
+    assert_eq!(
+      until(skip_spaces_parser(), get_char_parser(), mocked_state_1(4)), 
+      Ok((mocked_state_1(8), vec!['b', 'a', 'r']))
+    );
+    assert_eq!(
+      until(skip_spaces_parser(), get_char_parser(), mocked_state_1(3)), 
+      Ok((mocked_state_1(4), vec![]))
+    );
+    assert_eq!(
+      until(text_parser("bar"), get_char_parser(), mocked_state_1(0)), 
+      Ok((mocked_state_1(7), vec!['f', 'o', 'o']))
+    );
+  }
+
+  #[test]
+  fn list_test() {
+    let result = 
+      list(
+        text_parser("foo"), 
+        skip_spaces_parser(), 
+        text_parser("baz"),
+        get_char_parser(), 
+        Box::new(|x| x.into_iter().collect()), 
+        mocked_state_1(0)
+    );
+    assert_eq!(
+      result,
+      Ok((mocked_state_1(11), "bar".to_string()))
+    )
+  }
+
+  // Name
+  // ====
+
+  #[test]
+  fn is_letter_test() {
+    assert!(is_letter('C'));
+    assert!(is_letter('k'));
+    assert!(is_letter('4'));
+    assert!(is_letter('_'));
+    assert!(is_letter('.'));
+    assert!(!is_letter('?'));
+    assert!(!is_letter('/'));
+    assert!(!is_letter('('));
+    assert!(!is_letter('='));
+  }
+
+  #[test]
+  fn name_here_test() {
+    parse_test_ok(Box::new(name_here), "foo".to_string(), mocked_state_1(0), mocked_state_1(3));
+    parse_test_ok(Box::new(name_here), "bar".to_string(), mocked_state_1(4), mocked_state_1(7));
+    parse_test_ok(Box::new(name_here), "".to_string(), mocked_state_1(3), mocked_state_1(3));
+  }
+
+  #[test]
+  fn name_test() {
+    parse_test_ok(Box::new(name), "foo".to_string(), mocked_state_1(0), mocked_state_1(3));
+    parse_test_ok(Box::new(name), "bar".to_string(), mocked_state_1(4), mocked_state_1(7));
+    parse_test_ok(Box::new(name), "bar".to_string(), mocked_state_1(3), mocked_state_1(7));
+  }
+  
+  #[test]
+  fn name1_test() {
+    parse_test_ok(Box::new(name1), "foo".to_string(), mocked_state_1(0), mocked_state_1(3));
+    parse_test_ok(Box::new(name1), "bar".to_string(), mocked_state_1(4), mocked_state_1(7));
+    parse_test_ok(Box::new(name1), "bar".to_string(), mocked_state_1(3), mocked_state_1(7));
+  }
+
+  // Errors
+  // ====
+
+  #[test]
+  fn highlight_test() {
+    let open_color = "\x1b[4m\x1b[31m";
+    let close_color = "\x1b[0m";
+    assert_eq!(
+      highlight(3, 8, "foo bar baz"),
+      format!("    0 | foo{} bar {}baz\n", open_color, close_color)
+    );
+    assert_eq!(
+      highlight(3, 10, "foo\n bar \n baz"),
+      format!("    0 | foo{}\n    1 | {} bar {}\n    2 | {} baz\n", open_color, open_color, close_color, close_color)
+    );
+    assert_eq!(
+      highlight(3, 6, "foo\n bar \n baz"),
+      format!("    0 | foo{}\n    1 |  b{}ar \n    2 |  baz\n", open_color, close_color)
+    );
+  }
+
+  #[test]
+  fn expected_test() {
+    let init = 0;
+    let size = 3;
+    let expected1: Answer<()> = expected("vasco", size, mocked_state_1(init));
+    assert_eq!(
+      expected1,
+      Err(format!("Expected {}:\n{}", "vasco", highlight(init, size, mocked_state_1(0).code)))
+    );
+  }
 }
