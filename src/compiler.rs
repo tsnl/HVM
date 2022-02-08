@@ -463,7 +463,22 @@ pub fn c_runtime_template(
   names_count: u64,
   parallel: bool,
 ) -> String {
+  macro_rules! include_cross_platform_runtime_dep {
+    ( $x:expr ) => { include_str!(concat!("runtime_deps/", $x, "/", $x, ".inl.c")) };
+  }
+  macro_rules! include_platform_dependent_runtime_dep {
+    ( $x:expr, $p:expr ) => {
+      concat!(
+        include_cross_platform_runtime_dep!($x), "\n",
+        include_str!(concat!("runtime_deps/", $x, "/", "epilogue-", $p, ".inl.c"))
+      )
+    };
+  }
+
   const C_RUNTIME_TEMPLATE: &str = include_str!("runtime.c");
+  const C_DEPENDENCY_BASIC: &str = "/* GENERATED_DEPENDENCY_BASIC */";
+  const C_DEPENDENCY_THREAD: &str = "/* GENERATED_DEPENDENCY_THREAD */";
+  const C_DEPENDENCY_TIME: &str = "/* GENERATED_DEPENDENCY_TIME */";
   const C_PARALLEL_FLAG_CONTENT: &str = "/* GENERATED_PARALLEL_FLAG_CONTENT */";
   const C_CONSTRUCTOR_IDS_CONTENT: &str = "/* GENERATED_CONSTRUCTOR_IDS_CONTENT */";
   const C_REWRITE_RULES_STEP_0_CONTENT: &str = "/* GENERATED_REWRITE_RULES_STEP_0_CONTENT */";
@@ -472,46 +487,40 @@ pub fn c_runtime_template(
   const C_ID_TO_NAME_DATA_CONTENT: &str = "/* GENERATED_ID_TO_NAME_DATA_CONTENT */";
   const C_NUM_THREADS_CONTENT: &str = "/* GENERATED_NUM_THREADS_CONTENT */";
 
+  let c_dependency_basic_code: &str = include_cross_platform_runtime_dep!("basic");
+  let c_dependency_thread_code: &str = match std::env::consts::OS {
+    "windows"         => { include_platform_dependent_runtime_dep!("thread", "windows") },
+    "linux" | "macos" => { include_platform_dependent_runtime_dep!("thread", "posix") },
+    _                 => { panic!("Could not locate dependency code for this OS.") }
+  };
+  let c_dependency_time_code: &str = match std::env::consts::OS {
+    "windows"         => { include_platform_dependent_runtime_dep!("time", "windows") },
+    "linux" | "macos" => { include_platform_dependent_runtime_dep!("time", "posix") },
+    _                 => { panic!("Could not locate dependency code for this OS.") }
+  };
+  
   // Sanity checks: the generated section tokens we're looking for must be present in the runtime C
   // file.
-  debug_assert!(
-    C_RUNTIME_TEMPLATE.contains(C_CONSTRUCTOR_IDS_CONTENT),
-    "The runtime C file is missing the constructor ids section token: {}",
-    C_CONSTRUCTOR_IDS_CONTENT
-  );
-  debug_assert!(
-    C_RUNTIME_TEMPLATE.contains(C_PARALLEL_FLAG_CONTENT),
-    "The runtime C file is missing parallel flag token: {}",
-    C_PARALLEL_FLAG_CONTENT
-  );
-  debug_assert!(
-    C_RUNTIME_TEMPLATE.contains(C_REWRITE_RULES_STEP_0_CONTENT),
-    "The runtime C file is missing the rewrite rules step 0 section token: {}",
-    C_REWRITE_RULES_STEP_0_CONTENT
-  );
-  debug_assert!(
-    C_RUNTIME_TEMPLATE.contains(C_REWRITE_RULES_STEP_1_CONTENT),
-    "The runtime C file is missing the rewrite rules step 1 section token: {}",
-    C_REWRITE_RULES_STEP_1_CONTENT
-  );
-  debug_assert!(
-    C_RUNTIME_TEMPLATE.contains(C_NAME_COUNT_CONTENT),
-    "The runtime C file is missing name count section token: {}",
-    C_NAME_COUNT_CONTENT
-  );
-  debug_assert!(
-    C_RUNTIME_TEMPLATE.contains(C_ID_TO_NAME_DATA_CONTENT),
-    "The runtime C file is missing the id to name data section token: {}",
-    C_ID_TO_NAME_DATA_CONTENT
-  );
-  debug_assert!(
-    C_RUNTIME_TEMPLATE.contains(C_NUM_THREADS_CONTENT),
-    "The runtime C file is missing the num threads section token: {}",
-    C_NUM_THREADS_CONTENT
-  );
-
+  fn sanity_check_token(token: &str, desc: &str) {
+    debug_assert!(
+      C_RUNTIME_TEMPLATE.contains(token),
+      "The runtime C file is missing the {} token: {}", 
+      desc, token
+    );
+  }
+  sanity_check_token(C_CONSTRUCTOR_IDS_CONTENT, "constructor ids section");
+  sanity_check_token(C_PARALLEL_FLAG_CONTENT, "parallel flag token");
+  sanity_check_token(C_REWRITE_RULES_STEP_0_CONTENT, "rewrite rules step 0 section");
+  sanity_check_token(C_REWRITE_RULES_STEP_1_CONTENT, "rewrite rules step 1 section");
+  sanity_check_token(C_NAME_COUNT_CONTENT, "name count section");
+  sanity_check_token(C_ID_TO_NAME_DATA_CONTENT, "name data section");
+  sanity_check_token(C_NUM_THREADS_CONTENT, "num threads section");
+  sanity_check_token(C_DEPENDENCY_BASIC, "'basic' dependency section");
+  sanity_check_token(C_DEPENDENCY_THREAD, "'thread' dependency section");
+  sanity_check_token(C_DEPENDENCY_TIME, "'time' dependency section");
+  
   // Instantiate the template with the given sections' content
-
+  
   C_RUNTIME_TEMPLATE
     .replace(C_PARALLEL_FLAG_CONTENT, if parallel { "#define PARALLEL" } else { "" })
     .replace(C_NUM_THREADS_CONTENT, &num_cpus::get().to_string())
@@ -520,4 +529,7 @@ pub fn c_runtime_template(
     .replace(C_REWRITE_RULES_STEP_1_CONTENT, codes)
     .replace(C_NAME_COUNT_CONTENT, &names_count.to_string())
     .replace(C_ID_TO_NAME_DATA_CONTENT, id2nm)
+    .replace(C_DEPENDENCY_BASIC, c_dependency_basic_code)
+    .replace(C_DEPENDENCY_THREAD, c_dependency_thread_code)
+    .replace(C_DEPENDENCY_TIME, c_dependency_time_code)
 }

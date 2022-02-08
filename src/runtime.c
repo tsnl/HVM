@@ -9,24 +9,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
-
-#ifdef PARALLEL
-#include <pthread.h>
-#endif
+#include <sys/time.h>   // TODO: delete this header
 
 #define LIKELY(x) __builtin_expect((x), 1)
 #define UNLIKELY(x) __builtin_expect((x), 0)
 
-// Types
-// -----
+// Dep: Basic
+// ----------
 
-// TODO: stdint.h
-typedef unsigned char u8;
-typedef unsigned int u32;
-typedef unsigned long long int u64;
+/* GENERATED_DEPENDENCY_BASIC */
+
+// Dep: Time
+// ---------
+
+/* GENERATED_DEPENDENCY_TIME */
+
+// Dep: Thread
+// -----------
+
 #ifdef PARALLEL
-typedef pthread_t Thd;
+/* GENERATED_DEPENDENCY_THREAD */
 #endif
 
 // Consts
@@ -1018,7 +1020,7 @@ void ffi_normal(u8* mem_data, u32 mem_size, u32 host) {
   // Spawns threads
   #ifdef PARALLEL
   for (u64 tid = 1; tid < MAX_WORKERS; ++tid) {
-    pthread_create(&workers[tid].thread, NULL, &worker, (void*)tid);
+    thread_create(&workers[tid].thread, NULL, &worker, (void*)tid);
   }
   #endif
 
@@ -1042,7 +1044,7 @@ void ffi_normal(u8* mem_data, u32 mem_size, u32 host) {
 
   // Waits workers to stop
   for (u64 tid = 1; tid < MAX_WORKERS; ++tid) {
-    pthread_join(workers[tid].thread, NULL);
+    thread_join(workers[tid].thread, NULL);
   }
 
   #endif
