@@ -1,4 +1,0 @@
-(If 1 t f) = t
-(If 0 t f) = f
-
-(Main) = (If 0 99 42)
