@@ -5,28 +5,47 @@
 /* GENERATED_PARALLEL_FLAG_CONTENT */
 
 #include <assert.h>
-#include <stdatomic.h>
+#include <stdint.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
+
+/*! GENERATED_PARALLEL_FLAG */
+#define PARALLEL
+/* GENERATED_PARALLEL_FLAG !*/
 
 #ifdef PARALLEL
 #include <pthread.h>
+#include <stdatomic.h>
 #endif
 
 #define LIKELY(x) __builtin_expect((x), 1)
 #define UNLIKELY(x) __builtin_expect((x), 0)
 
-// Types
-// -----
+// Dep: Basic
+// ----------
 
-// TODO: stdint.h
-typedef unsigned char u8;
-typedef unsigned int u32;
-typedef unsigned long long int u64;
+/*! GENERATED_DEPENDENCY_BASIC */
+#include "basic/basic.inl.c"
+/* GENERATED_DEPENDENCY_BASIC !*/
+
+// Dep: Time
+// ---------
+
+/*! GENERATED_DEPENDENCY_TIME */
+#include "time/time.inl.c"
+#include "time/epilogue-posix.inl.c"
+/* GENERATED_DEPENDENCY_TIME !*/
+
+// Dep: Thread
+// -----------
+
 #ifdef PARALLEL
-typedef pthread_t Thd;
+/*! GENERATED_DEPENDENCY_THREAD */
+#include "thread/thread.inl.c"
+#include "thread/epilogue-posix.inl.c"
+/* GENERATED_DEPENDENCY_THREAD !*/
 #endif
 
 // Consts
