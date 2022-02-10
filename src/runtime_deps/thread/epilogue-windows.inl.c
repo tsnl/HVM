@@ -14,7 +14,7 @@ typedef HANDLE Thd;
 typedef DWORD(*ThdCb)(LPVOID);
 typedef HANDLE Mutex;
 typedef struct{CONDITION_VARIABLE cv; CRITICAL_SECTION cs;} CondVar;
-inline static void thread_create(Thd* restrict thread, ThdCb* start_routine, void* restrict arg);
+inline static void thread_create(Thd* restrict thread, ThdCb start_routine, void* restrict arg);
 inline static void thread_join(Thd thread, void** ret_val_ptr);
 inline static void thread_mutex_init(Mutex* mutex);
 inline static void thread_mutex_destroy(Mutex* mutex);

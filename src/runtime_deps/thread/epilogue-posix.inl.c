@@ -19,11 +19,11 @@ inline static void thread_cond_signal(CondVar* cond_var);
 inline static void thread_cond_wait(CondVar* cond_var, Mutex* mutex);
 inline static void __thread_check(int res, char const* more);
 
-inline static void thread_create(Thd* restrict thread, ThdCb* start_routine, void* restrict arg) {
+inline static void thread_create(Thd* restrict thread, ThdCb start_routine, void* restrict arg) {
   __thread_check(pthread_create(thread, NULL, *start_routine, arg), "thread_create: pthread_create failed");
 }
 inline static void thread_join(Thd thread) {
-  __thread_check(pthread_join(thread, ret_val_ptr), "thread_join: pthread_join failed");
+  __thread_check(pthread_join(thread, NULL), "thread_join: pthread_join failed");
 }
 inline static void thread_mutex_init(Mutex* mutex) {
   __thread_check(pthread_mutex_init(mutex, NULL), "thread_mutex_init: pthread_mutex_init failed");
