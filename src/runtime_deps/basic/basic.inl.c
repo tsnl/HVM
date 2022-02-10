@@ -8,7 +8,7 @@ typedef uint32_t u32;
 typedef uint64_t u64;
 
 typedef enum {
-    HVM_EXIT_CODE_PTHREAD_FAILED
+    HVM_EXIT_CODE_THREAD_OP_FAILED
 } HvmExitCode;
 
 inline static void panic(HvmExitCode ec, char const* fmt, ...) {

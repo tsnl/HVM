@@ -13,13 +13,6 @@
 #define PARALLEL
 /* GENERATED_PARALLEL_FLAG !*/
 
-/*! GENERATED_PARALLEL_FLAG !*/
-
-#ifdef PARALLEL
-#include <pthread.h>
-#include <stdatomic.h>
-#endif
-
 #define LIKELY(x) __builtin_expect((x), 1)
 #define UNLIKELY(x) __builtin_expect((x), 0)
 
@@ -46,6 +39,16 @@
 #include "thread/thread.inl.c"
 #include "thread/epilogue-posix.inl.c"
 /* GENERATED_DEPENDENCY_THREAD !*/
+#endif
+
+// Dep: Atomic
+// -----------
+
+#ifdef PARALLEL
+/*! GENERATED_DEPENDENCY_ATOMIC */
+#include "atomic/atomic.inl.c"
+#include "atomic/epilogue-posix.inl.c"
+/* GENERATED_DEPENDENCY_ATOMIC !*/
 #endif
 
 // Consts

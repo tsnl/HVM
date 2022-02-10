@@ -484,13 +484,13 @@ pub fn c_runtime_template(
   parallel: bool,
 ) -> String {
   // Including code into the compiler executable's data segment:
-  macro_rules! include_cross_platform_runtime_dep {
+  macro_rules! include_universal_runtime_dep {
     ( $x:expr ) => { include_str!(concat!("runtime_deps/", $x, "/", $x, ".inl.c")) };
   }
   macro_rules! include_platform_dependent_runtime_dep {
     ( $x:expr, $p:expr ) => {
       concat!(
-        include_cross_platform_runtime_dep!($x), "\n",
+        include_universal_runtime_dep!($x), "\n",
         include_str!(concat!("runtime_deps/", $x, "/", "epilogue-", $p, ".inl.c"))
       )
     };
@@ -503,7 +503,8 @@ pub fn c_runtime_template(
     };
   }
   const C_RUNTIME_TEMPLATE: &str = include_str!("runtime.c");
-  let c_dependency_basic_code: &str = include_cross_platform_runtime_dep!("basic");
+  let c_dependency_basic_code: &str = include_universal_runtime_dep!("basic");
+  let c_dependency_atomic_code: &str = include_platform_dependent_runtime_dep!("atomic");
   let c_dependency_thread_code: &str = include_platform_dependent_runtime_dep!("thread");
   let c_dependency_time_code: &str = include_platform_dependent_runtime_dep!("time");
   
@@ -516,6 +517,7 @@ pub fn c_runtime_template(
   const C_NAME_COUNT_TAG: &str = "GENERATED_NAME_COUNT";
   const C_ID_TO_NAME_DATA_TAG: &str = "GENERATED_ID_TO_NAME_DATA";
   const C_DEPENDENCY_BASIC_TAG: &str = "GENERATED_DEPENDENCY_BASIC";
+  const C_DEPENDENCY_ATOMIC_TAG: &str = "GENERATED_DEPENDENCY_ATOMIC";
   const C_DEPENDENCY_THREAD_TAG: &str = "GENERATED_DEPENDENCY_THREAD";
   const C_DEPENDENCY_TIME_TAG: &str = "GENERATED_DEPENDENCY_TIME";
 
@@ -550,6 +552,7 @@ pub fn c_runtime_template(
       C_NAME_COUNT_TAG => names_count,
       C_ID_TO_NAME_DATA_TAG => id2nm,
       C_DEPENDENCY_BASIC_TAG => c_dependency_basic_code,
+      C_DEPENDENCY_ATOMIC_TAG => c_dependency_atomic_code,
       C_DEPENDENCY_THREAD_TAG => c_dependency_thread_code,
       C_DEPENDENCY_TIME_TAG => c_dependency_time_code,
       _ => panic!("Unknown replacement tag."),
