@@ -13,6 +13,8 @@
 #define PARALLEL
 /* GENERATED_PARALLEL_FLAG !*/
 
+/*! GENERATED_PARALLEL_FLAG !*/
+
 #ifdef PARALLEL
 #include <pthread.h>
 #include <stdatomic.h>
@@ -59,7 +61,7 @@
 #define HEAP_SIZE (8 * U64_PER_GB * sizeof(u64))
 
 #ifdef PARALLEL
-#define MAX_WORKERS (/*! GENERATED_NUM_THREADS */ 0 /* GENERATED_NUM_THREADS !*/)
+#define MAX_WORKERS (/*! GENERATED_NUM_THREADS */ 1 /* GENERATED_NUM_THREADS !*/)
 #else
 #define MAX_WORKERS (1)
 #endif
@@ -1387,9 +1389,9 @@ int main(int argc, char* argv[]) {
   // Prints result statistics
   u64 delta_time = (stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec;
   double rwt_per_sec = (double)ffi_cost / (double)delta_time;
-  printf("Rewrites: %"PRIu64" (%.2f MR/s).\n", ffi_cost, rwt_per_sec);
-  printf("Mem.Size: %"PRIu64" words.\n", ffi_size);
-  printf("\n");
+  fprintf(stderr, "Rewrites: %"PRIu64" (%.2f MR/s).\n", ffi_cost, rwt_per_sec);
+  fprintf(stderr, "Megm.Size: %"PRIu64" words.\n", ffi_size);
+  fprintf(stderr, "\n");
 
   // Prints result normal form
   const u64 code_mcap = 256 * 256 * 256; // max code size = 16 MB

@@ -462,7 +462,7 @@ fn line(code: &mut String, tab: u64, line: &str) {
   code.push('\n');
 }
 
-/// String pattern that will be replaced on template C code.
+/// String pattern that will be replaced on the template code.  
 /// Syntax:
 /// ```c
 /// /*! <TAG> !*/
@@ -471,8 +471,9 @@ fn line(code: &mut String, tab: u64, line: &str) {
 /// ```c
 /// /*! <TAG> */ ... /* <TAG> !*/
 /// ```
+// Note: `(?s)` is the flag that allows `.` to match `\n`
 const REPLACEMENT_TOKEN_PATTERN: &str =
-  r"(?:/\*! *(\w+?) *!\*/)|(?:/\*! *(\w+?) *\*/.+/\* *(\w+?) *!\*/)";
+  r"(?s)(?:/\*! *(\w+?) *!\*/)|(/\*! *(\w+?) *\*/.+?/\* *(\w+?) *!\*/)";
 
 pub fn c_runtime_template(
   c_ids: &str,
@@ -528,13 +529,11 @@ pub fn c_runtime_template(
   let result = re.replace_all(C_RUNTIME_TEMPLATE, |caps: &regex::Captures| {
     let tag = if let Some(cap1) = caps.get(1) {
       cap1.as_str()
-    } else if let Some(cap2) = caps.get(2) {
-      let cap2 = cap2.as_str();
-      if let Some(cap3) = caps.get(3) {
-        let cap3 = cap3.as_str();
-        debug_assert!(cap2 == cap3, "Closing block tag name must match opening tag: {}.", cap2);
-      }
-      cap2
+    } else if let Some(_) = caps.get(2) {
+      let cap3 = caps.get(3).unwrap().as_str();
+      let cap4 = caps.get(4).unwrap().as_str();
+      debug_assert!(cap3 == cap4, "Closing block tag name must match opening tag: {}.", cap3);
+      cap3
     } else {
       panic!("Replacement token must have a tag.")
     };
