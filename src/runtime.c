@@ -1045,7 +1045,7 @@ void ffi_normal(u8* mem_data, u32 mem_size, u32 host) {
   // Spawns threads
   #ifdef PARALLEL
   for (u64 tid = 1; tid < MAX_WORKERS; ++tid) {
-    thread_create(&workers[tid].thread, NULL, &worker, (void*)tid);
+    pthread_create(&workers[tid].thread, NULL, &worker, (void*)tid);
   }
   #endif
 
@@ -1069,7 +1069,7 @@ void ffi_normal(u8* mem_data, u32 mem_size, u32 host) {
 
   // Waits workers to stop
   for (u64 tid = 1; tid < MAX_WORKERS; ++tid) {
-    thread_join(workers[tid].thread, NULL);
+    pthread_join(workers[tid].thread, NULL);
   }
 
   #endif
