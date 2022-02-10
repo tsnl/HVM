@@ -1,4 +1,3 @@
-#include <stdatomic.h>
 typedef void*(*ThdCb)(void*);
 // provides: thread_{create, join} with `Thd`, `thread_create`, `thread_join`
 // TODO: replace pthread_mutex_{t, init, destroy, lock, unlock} with `Mutex`, `thread_mutex_...`
