@@ -8,6 +8,7 @@
 //
 
 #include <windows.h>
+#include <processthreadsapi.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>

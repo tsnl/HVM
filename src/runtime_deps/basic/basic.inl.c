@@ -9,7 +9,8 @@ typedef uint64_t u64;
 
 typedef enum {
   HVM_EXIT_CODE_ALL_OK = 0,
-  HVM_EXIT_CODE_THREAD_OP_FAILED
+  HVM_EXIT_CODE_THREAD_OP_FAILED,
+  HVM_EXIT_CODE_TIME_OP_FAILED
 } HvmExitCode;
 
 inline static void panic(HvmExitCode ec, char const* fmt, ...) {
@@ -39,4 +40,7 @@ inline static void __check(char const* prefix, int res, char const* more, int ex
 }
 inline static void __thread_check(int res, char const* more) {
   __check("THREAD", res, more, HVM_EXIT_CODE_THREAD_OP_FAILED);
+}
+inline static void __time_check(int res, char const* more) {
+  __check("TIME", res, more, HVM_EXIT_CODE_TIME_OP_FAILED);
 }

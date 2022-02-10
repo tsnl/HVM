@@ -13,8 +13,13 @@
 #define PARALLEL
 /* GENERATED_PARALLEL_FLAG !*/
 
-#define LIKELY(x) __builtin_expect((x), 1)
-#define UNLIKELY(x) __builtin_expect((x), 0)
+#ifndef _WIN32
+# define LIKELY(x) __builtin_expect((x), 1)
+# define UNLIKELY(x) __builtin_expect((x), 0)
+#else
+# define LIKELY(x) (x)
+# define UNLIKELY(x) (x)
+#endif
 
 // Dep: Basic
 // ----------
@@ -1074,7 +1079,7 @@ void ffi_normal(u8* mem_data, u32 mem_size, u32 host) {
 
   // Waits workers to stop
   for (u64 tid = 1; tid < MAX_WORKERS; ++tid) {
-    thread_join(workers[tid].thread, NULL);
+    thread_join(workers[tid].thread);
   }
 
   #endif
@@ -1366,10 +1371,10 @@ int main(int argc, char* argv[]) {
   struct timeval stop, start;
 
   // Id-to-Name map
-  const u64 id_to_name_size = /*! GENERATED_NAME_COUNT */ 1 /* GENERATED_NAME_COUNT !*/;
-  char* id_to_name_data[id_to_name_size];
+  #define ID_TO_NAME_SIZE (/*! GENERATED_NAME_COUNT */ 1 /* GENERATED_NAME_COUNT !*/)
+  char* id_to_name_data[ID_TO_NAME_SIZE];
 /*! GENERATED_ID_TO_NAME_DATA !*/;
-
+  
   // Builds main term
   mem.size = 0;
   mem.node = (u64*)malloc(HEAP_SIZE);
@@ -1379,15 +1384,15 @@ int main(int argc, char* argv[]) {
   } else {
     mem.node[mem.size++] = Cal(argc - 1, _MAIN_, 1);
     for (u64 i = 1; i < argc; ++i) {
-      mem.node[mem.size++] = parse_arg(argv[i], id_to_name_data, id_to_name_size);
+      mem.node[mem.size++] = parse_arg(argv[i], id_to_name_data, ID_TO_NAME_SIZE);
     }
   }
 
   // Reduces and benchmarks
   //printf("Reducing.\n");
-  gettimeofday(&start, NULL);
+  time_now(&start);
   ffi_normal((u8*)mem.node, mem.size, 0);
-  gettimeofday(&stop, NULL);
+  time_now(&stop);
 
   // Prints result statistics
   u64 delta_time = (stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec;
@@ -1400,7 +1405,7 @@ int main(int argc, char* argv[]) {
   const u64 code_mcap = 256 * 256 * 256; // max code size = 16 MB
   char* code_data = (char*)malloc(code_mcap * sizeof(char)); 
   assert(code_data);
-  readback(code_data, code_mcap, &mem, mem.node[0], id_to_name_data, id_to_name_size);
+  readback(code_data, code_mcap, &mem, mem.node[0], id_to_name_data, ID_TO_NAME_SIZE);
   printf("%s\n", code_data);
 
   // Cleanup
@@ -1409,4 +1414,7 @@ int main(int argc, char* argv[]) {
 
   // Exit code
   return HVM_EXIT_CODE_ALL_OK;
+
+  // Manually un-scoping defined constants:
+  #undef ID_TO_NAME_SIZE
 }
