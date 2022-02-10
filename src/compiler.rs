@@ -1,10 +1,12 @@
 #![allow(clippy::identity_op)]
 
+use regex::Regex;
+use std::io::Write;
+
 use crate::builder as bd;
 use crate::language as lang;
 use crate::rulebook as rb;
 use crate::runtime as rt;
-use std::io::Write;
 
 pub fn compile_code_and_save(code: &str, file_name: &str, parallel: bool) -> std::io::Result<()> {
   let as_clang = compile_code(code, parallel);
@@ -26,7 +28,12 @@ pub fn compile_code(code: &str, parallel: bool) -> String {
 }
 
 pub fn compile_name(name: &str) -> String {
-  str::replace(&format!("_{}_", name.to_uppercase()), ".", "$")
+  // TODO: this can still cause some name collisions.
+  // Note: avoiding the use of `$` because it is not an actually valid
+  // identifier character in C.
+  let name = name.replace("_", "__");
+  let name = name.replace(".", "_");
+  format!("_{}_", name.to_uppercase())
 }
 
 pub fn compile_book(comp: &rb::RuleBook, parallel: bool) -> String {
@@ -44,7 +51,7 @@ pub fn compile_book(comp: &rb::RuleBook, parallel: bool) -> String {
     line(
       &mut c_ids,
       0,
-      &format!("const u64 {} = {};", &compile_name(name), comp.name_to_id.get(name).unwrap_or(&0)),
+      &format!("#define {} ({})", &compile_name(name), comp.name_to_id.get(name).unwrap_or(&0)),
     );
 
     line(&mut inits, 6, &format!("case {}: {{", &compile_name(name)));
@@ -455,6 +462,18 @@ fn line(code: &mut String, tab: u64, line: &str) {
   code.push('\n');
 }
 
+/// String pattern that will be replaced on template C code.
+/// Syntax:
+/// ```c
+/// /*! <TAG> !*/
+/// ```
+/// or:
+/// ```c
+/// /*! <TAG> */ ... /* <TAG> !*/
+/// ```
+const REPLACEMENT_TOKEN_PATTERN: &str =
+  r"(?:/\*! *(\w+?) *!\*/)|(?:/\*! *(\w+?) *\*/.+/\* *(\w+?) *!\*/)";
+
 pub fn c_runtime_template(
   c_ids: &str,
   inits: &str,
@@ -463,6 +482,7 @@ pub fn c_runtime_template(
   names_count: u64,
   parallel: bool,
 ) -> String {
+  // Including code into the compiler executable's data segment:
   macro_rules! include_cross_platform_runtime_dep {
     ( $x:expr ) => { include_str!(concat!("runtime_deps/", $x, "/", $x, ".inl.c")) };
   }
@@ -473,63 +493,70 @@ pub fn c_runtime_template(
         include_str!(concat!("runtime_deps/", $x, "/", "epilogue-", $p, ".inl.c"))
       )
     };
+    ( $x:expr ) => {
+      match std::env::consts::OS {
+        "windows"         => { include_platform_dependent_runtime_dep!($x, "windows") },
+        "linux" | "macos" => { include_platform_dependent_runtime_dep!($x, "posix") },
+        _                 => { panic!("Could not locate dependency code for {} for OS {}", $x, std::env::consts::OS) }
+      }
+    };
   }
-
   const C_RUNTIME_TEMPLATE: &str = include_str!("runtime.c");
-  const C_DEPENDENCY_BASIC: &str = "/* GENERATED_DEPENDENCY_BASIC */";
-  const C_DEPENDENCY_THREAD: &str = "/* GENERATED_DEPENDENCY_THREAD */";
-  const C_DEPENDENCY_TIME: &str = "/* GENERATED_DEPENDENCY_TIME */";
-  const C_PARALLEL_FLAG_CONTENT: &str = "/* GENERATED_PARALLEL_FLAG_CONTENT */";
-  const C_CONSTRUCTOR_IDS_CONTENT: &str = "/* GENERATED_CONSTRUCTOR_IDS_CONTENT */";
-  const C_REWRITE_RULES_STEP_0_CONTENT: &str = "/* GENERATED_REWRITE_RULES_STEP_0_CONTENT */";
-  const C_REWRITE_RULES_STEP_1_CONTENT: &str = "/* GENERATED_REWRITE_RULES_STEP_1_CONTENT */";
-  const C_NAME_COUNT_CONTENT: &str = "/* GENERATED_NAME_COUNT_CONTENT */";
-  const C_ID_TO_NAME_DATA_CONTENT: &str = "/* GENERATED_ID_TO_NAME_DATA_CONTENT */";
-  const C_NUM_THREADS_CONTENT: &str = "/* GENERATED_NUM_THREADS_CONTENT */";
-
   let c_dependency_basic_code: &str = include_cross_platform_runtime_dep!("basic");
-  let c_dependency_thread_code: &str = match std::env::consts::OS {
-    "windows"         => { include_platform_dependent_runtime_dep!("thread", "windows") },
-    "linux" | "macos" => { include_platform_dependent_runtime_dep!("thread", "posix") },
-    _                 => { panic!("Could not locate dependency code for this OS.") }
-  };
-  let c_dependency_time_code: &str = match std::env::consts::OS {
-    "windows"         => { include_platform_dependent_runtime_dep!("time", "windows") },
-    "linux" | "macos" => { include_platform_dependent_runtime_dep!("time", "posix") },
-    _                 => { panic!("Could not locate dependency code for this OS.") }
-  };
+  let c_dependency_thread_code: &str = include_platform_dependent_runtime_dep!("thread");
+  let c_dependency_time_code: &str = include_platform_dependent_runtime_dep!("time");
   
-  // Sanity checks: the generated section tokens we're looking for must be present in the runtime C
-  // file.
-  fn sanity_check_token(token: &str, desc: &str) {
-    debug_assert!(
-      C_RUNTIME_TEMPLATE.contains(token),
-      "The runtime C file is missing the {} token: {}", 
-      desc, token
-    );
-  }
-  sanity_check_token(C_CONSTRUCTOR_IDS_CONTENT, "constructor ids section");
-  sanity_check_token(C_PARALLEL_FLAG_CONTENT, "parallel flag token");
-  sanity_check_token(C_REWRITE_RULES_STEP_0_CONTENT, "rewrite rules step 0 section");
-  sanity_check_token(C_REWRITE_RULES_STEP_1_CONTENT, "rewrite rules step 1 section");
-  sanity_check_token(C_NAME_COUNT_CONTENT, "name count section");
-  sanity_check_token(C_ID_TO_NAME_DATA_CONTENT, "name data section");
-  sanity_check_token(C_NUM_THREADS_CONTENT, "num threads section");
-  sanity_check_token(C_DEPENDENCY_BASIC, "'basic' dependency section");
-  sanity_check_token(C_DEPENDENCY_THREAD, "'thread' dependency section");
-  sanity_check_token(C_DEPENDENCY_TIME, "'time' dependency section");
-  
+  // Defining tags for replacement (cf above regular expression):
+  const C_PARALLEL_FLAG_TAG: &str = "GENERATED_PARALLEL_FLAG";
+  const C_NUM_THREADS_TAG: &str = "GENERATED_NUM_THREADS";
+  const C_CONSTRUCTOR_IDS_TAG: &str = "GENERATED_CONSTRUCTOR_IDS";
+  const C_REWRITE_RULES_STEP_0_TAG: &str = "GENERATED_REWRITE_RULES_STEP_0";
+  const C_REWRITE_RULES_STEP_1_TAG: &str = "GENERATED_REWRITE_RULES_STEP_1";
+  const C_NAME_COUNT_TAG: &str = "GENERATED_NAME_COUNT";
+  const C_ID_TO_NAME_DATA_TAG: &str = "GENERATED_ID_TO_NAME_DATA";
+  const C_DEPENDENCY_BASIC_TAG: &str = "GENERATED_DEPENDENCY_BASIC";
+  const C_DEPENDENCY_THREAD_TAG: &str = "GENERATED_DEPENDENCY_THREAD";
+  const C_DEPENDENCY_TIME_TAG: &str = "GENERATED_DEPENDENCY_TIME";
+
+  // TODO: Sanity checks: all tokens we're looking for must be present in the
+  // `runtime.c` file.
+
+  let re = Regex::new(REPLACEMENT_TOKEN_PATTERN).unwrap();
+
   // Instantiate the template with the given sections' content
-  
-  C_RUNTIME_TEMPLATE
-    .replace(C_PARALLEL_FLAG_CONTENT, if parallel { "#define PARALLEL" } else { "" })
-    .replace(C_NUM_THREADS_CONTENT, &num_cpus::get().to_string())
-    .replace(C_CONSTRUCTOR_IDS_CONTENT, c_ids)
-    .replace(C_REWRITE_RULES_STEP_0_CONTENT, inits)
-    .replace(C_REWRITE_RULES_STEP_1_CONTENT, codes)
-    .replace(C_NAME_COUNT_CONTENT, &names_count.to_string())
-    .replace(C_ID_TO_NAME_DATA_CONTENT, id2nm)
-    .replace(C_DEPENDENCY_BASIC, c_dependency_basic_code)
-    .replace(C_DEPENDENCY_THREAD, c_dependency_thread_code)
-    .replace(C_DEPENDENCY_TIME, c_dependency_time_code)
+
+  let result = re.replace_all(C_RUNTIME_TEMPLATE, |caps: &regex::Captures| {
+    let tag = if let Some(cap1) = caps.get(1) {
+      cap1.as_str()
+    } else if let Some(cap2) = caps.get(2) {
+      let cap2 = cap2.as_str();
+      if let Some(cap3) = caps.get(3) {
+        let cap3 = cap3.as_str();
+        debug_assert!(cap2 == cap3, "Closing block tag name must match opening tag: {}.", cap2);
+      }
+      cap2
+    } else {
+      panic!("Replacement token must have a tag.")
+    };
+
+    let parallel_flag = if parallel { "#define PARALLEL" } else { "" };
+    let num_threads = &num_cpus::get().to_string();
+    let names_count = &names_count.to_string();
+    match tag {
+      C_PARALLEL_FLAG_TAG => parallel_flag,
+      C_NUM_THREADS_TAG => num_threads,
+      C_CONSTRUCTOR_IDS_TAG => c_ids,
+      C_REWRITE_RULES_STEP_0_TAG => inits,
+      C_REWRITE_RULES_STEP_1_TAG => codes,
+      C_NAME_COUNT_TAG => names_count,
+      C_ID_TO_NAME_DATA_TAG => id2nm,
+      C_DEPENDENCY_BASIC_TAG => c_dependency_basic_code,
+      C_DEPENDENCY_THREAD_TAG => c_dependency_thread_code,
+      C_DEPENDENCY_TIME_TAG => c_dependency_time_code,
+      _ => panic!("Unknown replacement tag."),
+    }
+    .to_string()
+  });
+
+  (*result).to_string()
 }
