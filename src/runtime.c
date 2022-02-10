@@ -157,15 +157,15 @@ typedef struct {
   u64  cost;
 
   #ifdef PARALLEL
-  u64             has_work;
-  pthread_mutex_t has_work_mutex;
-  pthread_cond_t  has_work_signal;
+  u64 has_work;
+  Mutex has_work_mutex;
+  CondVar has_work_signal;
 
-  u64             has_result;
-  pthread_mutex_t has_result_mutex;
-  pthread_cond_t  has_result_signal;
+  u64 has_result;
+  Mutex has_result_mutex;
+  CondVar has_result_signal;
 
-  Thd  thread;
+  Thd thread;
   #endif
 } Worker;
 
@@ -968,41 +968,41 @@ Lnk normal(Worker* mem, u64 host, u64 sidx, u64 slen) {
 // normal form equally among threads, which will not fully use the CPU cores in
 // many cases. A better task scheduler should be implemented. See Issues.
 void normal_fork(u64 tid, u64 host, u64 sidx, u64 slen) {
-  pthread_mutex_lock(&workers[tid].has_work_mutex);
+  thread_mutex_lock(&workers[tid].has_work_mutex);
   workers[tid].has_work = (sidx << 48) | (slen << 32) | host;
-  pthread_cond_signal(&workers[tid].has_work_signal);
-  pthread_mutex_unlock(&workers[tid].has_work_mutex);
+  thread_cond_signal(&workers[tid].has_work_signal);
+  thread_mutex_unlock(&workers[tid].has_work_mutex);
 }
 
 // Waits the result of a forked normalizer
 u64 normal_join(u64 tid) {
   while (1) {
-    pthread_mutex_lock(&workers[tid].has_result_mutex);
+    thread_mutex_lock(&workers[tid].has_result_mutex);
     while (workers[tid].has_result == -1) {
-      pthread_cond_wait(&workers[tid].has_result_signal, &workers[tid].has_result_mutex);
+      thread_cond_wait(&workers[tid].has_result_signal, &workers[tid].has_result_mutex);
     }
     u64 done = workers[tid].has_result;
     workers[tid].has_result = -1;
-    pthread_mutex_unlock(&workers[tid].has_result_mutex);
+    thread_mutex_unlock(&workers[tid].has_result_mutex);
     return done;
   }
 }
 
 // Stops a worker
 void worker_stop(u64 tid) {
-  pthread_mutex_lock(&workers[tid].has_work_mutex);
+  thread_mutex_lock(&workers[tid].has_work_mutex);
   workers[tid].has_work = -2;
-  pthread_cond_signal(&workers[tid].has_work_signal);
-  pthread_mutex_unlock(&workers[tid].has_work_mutex);
+  thread_cond_signal(&workers[tid].has_work_signal);
+  thread_mutex_unlock(&workers[tid].has_work_mutex);
 }
 
 // The normalizer worker
 void *worker(void *arg) {
   u64 tid = (u64)arg;
   while (1) {
-    pthread_mutex_lock(&workers[tid].has_work_mutex);
+    thread_mutex_lock(&workers[tid].has_work_mutex);
     while (workers[tid].has_work == -1) {
-      pthread_cond_wait(&workers[tid].has_work_signal, &workers[tid].has_work_mutex);
+      thread_cond_wait(&workers[tid].has_work_signal, &workers[tid].has_work_mutex);
     }
     u64 work = workers[tid].has_work;
     if (work == -2) {
@@ -1013,8 +1013,8 @@ void *worker(void *arg) {
       u64 host = (work >>  0) & 0xFFFFFFFF;
       workers[tid].has_result = normal_go(&workers[tid], host, sidx, slen);
       workers[tid].has_work = -1;
-      pthread_cond_signal(&workers[tid].has_result_signal);
-      pthread_mutex_unlock(&workers[tid].has_work_mutex);
+      thread_cond_signal(&workers[tid].has_result_signal);
+      thread_mutex_unlock(&workers[tid].has_work_mutex);
     }
   }
   return 0;
@@ -1038,11 +1038,11 @@ void ffi_normal(u8* mem_data, u32 mem_size, u32 host) {
     workers[t].cost = 0;
     #ifdef PARALLEL
     workers[t].has_work = -1;
-    pthread_mutex_init(&workers[t].has_work_mutex, NULL);
-    pthread_cond_init(&workers[t].has_work_signal, NULL);
+    thread_mutex_init(&workers[t].has_work_mutex);
+    thread_cond_init(&workers[t].has_work_signal);
     workers[t].has_result = -1;
-    pthread_mutex_init(&workers[t].has_result_mutex, NULL);
-    pthread_cond_init(&workers[t].has_result_signal, NULL);
+    thread_mutex_init(&workers[t].has_result_mutex);
+    thread_cond_init(&workers[t].has_result_signal);
     // workers[t].thread = NULL;
     #endif
   }
@@ -1050,7 +1050,7 @@ void ffi_normal(u8* mem_data, u32 mem_size, u32 host) {
   // Spawns threads
   #ifdef PARALLEL
   for (u64 tid = 1; tid < MAX_WORKERS; ++tid) {
-    pthread_create(&workers[tid].thread, NULL, &worker, (void*)tid);
+    thread_create(&workers[tid].thread, &worker, (void*)tid);
   }
   #endif
 
@@ -1074,7 +1074,7 @@ void ffi_normal(u8* mem_data, u32 mem_size, u32 host) {
 
   // Waits workers to stop
   for (u64 tid = 1; tid < MAX_WORKERS; ++tid) {
-    pthread_join(workers[tid].thread, NULL);
+    thread_join(workers[tid].thread, NULL);
   }
 
   #endif
@@ -1085,10 +1085,10 @@ void ffi_normal(u8* mem_data, u32 mem_size, u32 host) {
       stk_free(&workers[tid].free[a]);
     }
     #ifdef PARALLEL
-    pthread_mutex_destroy(&workers[tid].has_work_mutex);
-    pthread_cond_destroy(&workers[tid].has_work_signal);
-    pthread_mutex_destroy(&workers[tid].has_result_mutex);
-    pthread_cond_destroy(&workers[tid].has_result_signal);
+    thread_mutex_destroy(&workers[tid].has_work_mutex);
+    thread_cond_destroy(&workers[tid].has_work_signal);
+    thread_mutex_destroy(&workers[tid].has_result_mutex);
+    thread_cond_destroy(&workers[tid].has_result_signal);
     #endif
   }
 }
@@ -1406,4 +1406,7 @@ int main(int argc, char* argv[]) {
   // Cleanup
   free(code_data);
   free(mem.node);
+
+  // Exit code
+  return HVM_EXIT_CODE_ALL_OK;
 }

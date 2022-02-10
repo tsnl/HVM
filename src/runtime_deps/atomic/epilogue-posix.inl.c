@@ -10,23 +10,39 @@
     by V. For TCC libatomic from the operating system is used
 */
 #ifndef __ATOMIC_H
-#define __ATOMIC_H
+#   define __ATOMIC_H
 
 #ifndef __cplusplus
-// If C just use stdatomic.h
-#ifndef __TINYC__
-#include <stdatomic.h>
-#endif
+//  If C just use stdatomic.h
+#   ifndef __TINYC__
+#       include <stdatomic.h>
+#   endif
 #else
 // CPP wrapper for atomic operations that are compatible with C
-#include "atomic_cpp.h"
+// Normally redirects to a different file.
+// #error "this header is not compatible with C++"
 #endif
 
 #ifdef __TINYC__
 
-typedef volatile long long atomic_llong;
-typedef volatile unsigned long long atomic_ullong;
-typedef volatile uintptr_t atomic_uintptr_t;
+// (for HVM)
+// Additional definitions for atomic_bool, atomic_flag
+// No native support for _Atomic(). Place object in structure to prevent
+// most forms of direct non-atomic access.
+#define _Atomic(T) T volatile
+typedef _Atomic(_Bool) atomic_bool;
+typedef _Atomic(char) atomic_char;
+typedef _Atomic(signed char) atomic_schar;
+typedef _Atomic(unsigned char) atomic_uchar;
+typedef _Atomic(short) atomic_short;
+typedef _Atomic(unsigned short) atomic_ushort;
+typedef _Atomic(int) atomic_int;
+typedef _Atomic(unsigned int) atomic_uint;
+typedef _Atomic(long) atomic_long;
+typedef _Atomic(unsigned long) atomic_ulong;
+typedef _Atomic(long long) atomic_llong;
+typedef _Atomic(unsigned long long) atomic_ullong;
+typedef _Atomic(uintptr_t) atomic_uintptr_t;
 
 // use functions for 64, 32 and 8 bit from libatomic directly
 // since tcc is not capible to use "generic" C functions
@@ -101,6 +117,7 @@ extern unsigned char __atomic_fetch_xor_1(unsigned char* x, unsigned char y, int
 
 // memory order policies - we use "sequentially consistent" by default
 
+#define memory_order int
 #define memory_order_relaxed 0
 #define memory_order_consume 1
 #define memory_order_acquire 2
@@ -276,7 +293,40 @@ static inline unsigned char atomic_fetch_xor_byte(unsigned char* x, unsigned cha
 	return __atomic_fetch_xor_1(x, y, memory_order_seq_cst);
 }
 
+/* (from atomic_cpp.h)
+ * 7.17.8 Atomic flag type and operations.
+ *
+ * XXX: Assume atomic_bool can be used as an atomic_flag. Is there some
+ * kind of compiler built-in type we could use?
+ */
+typedef struct { atomic_bool __flag; } atomic_flag;
+#ifdef __ATOMICS_AVOID_DOT_INIT
+#	define ATOMIC_VAR_INIT(value) {value}
 #else
+#	define ATOMIC_VAR_INIT(value) {.__val = (value)}
+#endif
+#define ATOMIC_FLAG_INIT {ATOMIC_VAR_INIT(false)}
+
+static inline _Bool
+atomic_flag_test_and_set_explicit(volatile atomic_flag *__object, memory_order __order) {
+    return (atomic_exchange_explicit(&__object->__flag, 1, __order));
+}
+static inline void
+atomic_flag_clear_explicit(volatile atomic_flag *__object, memory_order __order) {
+    atomic_store_explicit(&__object->__flag, 0, __order);
+}
+static inline _Bool
+atomic_flag_test_and_set(volatile atomic_flag *__object) {
+    return (atomic_flag_test_and_set_explicit(__object, memory_order_seq_cst));
+}
+static inline void
+atomic_flag_clear(volatile atomic_flag *__object) {
+    atomic_flag_clear_explicit(__object, memory_order_seq_cst);
+}
+
+#else
+
+// (non-TCC)
 
 // Since V might be confused with "generic" C functions either we provide special versions
 // for gcc/clang, too

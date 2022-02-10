@@ -1,0 +1,15 @@
+// List Map function
+(Map f Nil)         = Nil
+(Map f (Cons x xs)) = (Cons (f x) (Map f xs))
+
+// List projectors
+(Head (Cons x xs)) = x
+(Tail (Cons x xs)) = xs
+
+// The infinite list: 0, 1, 2, 3 ...
+Nats = (Cons 0 (Map λx(+ x 1) Nats))
+
+// Acquiring the 'nth' element:
+
+// Just a test (returns 4)
+Main = (Head (Tail (Tail (Tail (Tail Nats)))))
