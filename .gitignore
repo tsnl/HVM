@@ -14,4 +14,3 @@
 # Temporary/no-checkin
 .github
 /build/
-/.vscode

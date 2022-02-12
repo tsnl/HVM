@@ -1,0 +1,8 @@
+{
+    "cmake.sourceDirectory": "${workspaceFolder}/_scratch",
+    "files.associations": {
+        "*.ll": "lex",
+        "stddef.h": "c",
+        "stdbool.h": "c"
+    }
+}
