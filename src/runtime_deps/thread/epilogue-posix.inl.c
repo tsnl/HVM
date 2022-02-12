@@ -1,5 +1,8 @@
 // DEBUG: start '/src/runtime_deps/threads/impl-posix.inl.c'
 
+// FIXME: why does thread_join result in exit code 16?
+// - could be pointer indirection bug...
+
 #include <pthread.h>
 #include <stdio.h>
 

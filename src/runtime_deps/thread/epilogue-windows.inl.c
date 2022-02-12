@@ -5,6 +5,11 @@
 // FIXME: Windows ConditionVariable instances require an extra CRITICAL_SECTION object.
 // Instead, use WaitOnAddress and implement a custom ConditionVariable.
 // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitonaddress
+// Compare from: http://www.cs.kent.edu/~ruttan/sysprog/lectures/multi-thread/pthread_cond_init.html
+// - pthread_cond_signal maps to WakeByAddressSingle
+// - pthread_cond_wait maps to WaitOnAddress
+// - problem is: what is 'the address'? what is 'the comparison value'? Cf comment root.
+//   - address size: 
 
 #include <stddef.h>
 #include <stdio.h>
