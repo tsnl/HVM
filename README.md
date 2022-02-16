@@ -18,7 +18,7 @@ scale towards uncharted levels of performance.
 Usage
 -----
 
-#### 1. Install it
+### 1. Install it
 
 First, install [Rust](https://www.rust-lang.org/). Then, type:
 
@@ -26,7 +26,7 @@ First, install [Rust](https://www.rust-lang.org/). Then, type:
 cargo install hvm
 ```
 
-#### 2. Create an HVM file
+### 2. Create an HVM file
 
 HVM files look like untyped Haskell. Save the file below as `main.hvm`:
 
@@ -46,7 +46,7 @@ HVM files look like untyped Haskell. Save the file below as `main.hvm`:
 The program above creates a perfect binary tree with `2^n` elements and adds
 them up. Since it is recursive, HVM will parallelize it automatically.
 
-#### 3. Run and compile
+### 3. Run and compile
 
 ```sh
 hvm r main 10                      # runs it with n=10
@@ -62,6 +62,8 @@ runtime. And that's just the tip of iceberg!
 
 [See Nix usage documentation here.](./NIX.md)
 
+[See build instructions here.](./BUILDING.md)
+
 Benchmarks
 ==========
 
@@ -71,7 +73,7 @@ is still an early prototype, so it **obviously** won't beat GHC in general, but
 it does quite well already and should improve steadily as optimizations are
 implemented. Tests were compiled with `ghc -O2` for Haskell and `clang -O2` for
 HVM, on an 8-core M1 Max processor. The complete files to replicate these
-results are in [the /bench directory](bench).
+results are in [the `bench/` directory](bench).
 
 List Fold (Sequential)
 ----------------------
