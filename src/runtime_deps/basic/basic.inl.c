@@ -34,7 +34,7 @@ inline static void __check(char const* prefix, int res, char const* more, int ex
     //   prefix, more, res
     // );
     fprintf(stderr,
-      "%s: %s: errno %d: [DEBUG: NOT] exiting with ec=%d...\n",  
+      "%s: %s: errno %d: [not (for debug)] exiting with ec=%d...\n",  
       prefix, more, res, exit_code
     );
   }
