@@ -18,7 +18,7 @@
 typedef HANDLE Thd;
 typedef DWORD(*ThdCb)(LPVOID);
 typedef HANDLE Mutex;
-typedef struct{CONDITION_VARIABLE cv;} CondVar;
+typedef struct { volatile unsigned char* value_ptr; } CondVar;
 inline static void thread_create(Thd* restrict thread, ThdCb start_routine, void* restrict arg);
 inline static void thread_join(Thd thread, void** ret_val_ptr);
 inline static void thread_mutex_init(Mutex* mutex);
@@ -30,6 +30,11 @@ inline static void thread_cond_destroy(CondVar* cond_var);
 inline static void thread_cond_signal(CondVar* cond_var);
 inline static void thread_cond_wait(CondVar* cond_var, Mutex* mutex);
 inline static void __thread_check(int res, char const* more);
+
+#define MAX_COND_VAR_COUNT (16)
+static CRITICAL_SECTION cv_critical_section;
+static volatile unsigned char cv_mem_table[MAX_COND_VAR_COUNT];
+static size_t cv_mem_table_count = 0;
 
 inline static void thread_create(Thd* restrict thread, ThdCb start_routine, void* restrict arg) {
     *thread = CreateThread(
@@ -83,14 +88,35 @@ inline static void thread_mutex_unlock(Mutex* mutex) {
     }
 }
 inline static void thread_cond_init(CondVar* cond_var) {
-    // todo!
+    CRITICAL_SECTION critical_section;
+    EnterCriticalSection(&critical_section);
+    {
+        if (cv_mem_table_count == MAX_COND_VAR_COUNT) {
+            // if no more static table entries can be used, fall-back to `malloc`
+            cond_var->value_ptr = malloc(sizeof(*cond_var->value_ptr));
+        } else {
+            // else, use static entry
+            cond_var->value_ptr = &cv_mem_table[cv_mem_table_count++];
+        }
+    }
+    LeaveCriticalSection(&critical_section);
 }
 inline static void thread_cond_destroy(CondVar* cond_var) {
-    // todo!
+    if (cv_mem_table <= cond_var->value_ptr && cond_var->value_ptr < cv_mem_table + MAX_COND_VAR_COUNT) {
+        // nothing further required
+    } else {
+        // allocated on the heap: must free
+        free(cond_var->value_ptr);
+    }
+    cond_var->value_ptr = NULL;
 }
 inline static void thread_cond_signal(CondVar* cond_var) {
-    // todo!
+    // todo! Signal -> Wake: need to test this: do not guess.
+    WakeByAddressSingle(cond_var->value_ptr);
 }
 inline static void thread_cond_wait(CondVar* cond_var, Mutex* mutex) {
-    // todo!
+    // todo! Wait -> Sleep: need to test this: do not guess.
+    thread_mutex_lock(mutex);
+    WaitOnAddress(cond_var->value_ptr, 1, sizeof(*cond_var->value_ptr), INFINITE);
+    thread_mutex_unlock(mutex);
 }
